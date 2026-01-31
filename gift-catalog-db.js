@@ -14,7 +14,7 @@ class GiftCatalogDB {
     // Auto-detect Railway environment and use volume path
     if (process.env.RAILWAY_ENVIRONMENT && !dbPath.includes('/app/data/')) {
       dbPath = '/app/data/gift_catalog.json';
-      console.log('?? Railway detected - using volume storage');
+      console.log('🚂 Railway detected - using volume storage');
     }
     
     // Ensure directory exists (important for Railway volumes)
@@ -22,9 +22,9 @@ class GiftCatalogDB {
     if (!fsSync.existsSync(dir)) {
       try {
         fsSync.mkdirSync(dir, { recursive: true });
-        console.log(`?? Created directory: ${dir}`);
+        console.log(`📁 Created directory: ${dir}`);
       } catch (error) {
-        console.error(`? Error creating directory ${dir}:`, error.message);
+        console.error(`❌ Error creating directory ${dir}:`, error.message);
       }
     }
     
@@ -36,7 +36,7 @@ class GiftCatalogDB {
       version: '2.0'
     };
     
-    console.log(`?? Database path: ${this.dbPath}`);
+    console.log(`💾 Database path: ${this.dbPath}`);
   }
 
   // ============================================
@@ -46,12 +46,12 @@ class GiftCatalogDB {
   async initialize() {
     try {
       await this.load();
-      console.log('? Gift catalog database loaded');
-      console.log(`?? Gifts: ${Object.keys(this.catalog.gifts).length}`);
-      console.log(`?? Prizes: ${Object.keys(this.catalog.prizes).length}`);
+      console.log('✅ Gift catalog database loaded');
+      console.log(`📊 Gifts: ${Object.keys(this.catalog.gifts).length}`);
+      console.log(`📊 Prizes: ${Object.keys(this.catalog.prizes).length}`);
       return true;
     } catch (error) {
-      console.log('?? Creating new gift catalog database...');
+      console.log('📦 Creating new gift catalog database...');
       await this.save();
       return true;
     }
@@ -69,10 +69,10 @@ class GiftCatalogDB {
     if (!this.catalog.version || this.catalog.version === '1.0') {
       this.catalog.version = '2.0';
       await this.save();
-      console.log('??  Migrated database to v2.0');
+      console.log('⬆️  Migrated database to v2.0');
     }
     
-    console.log(`?? Loaded catalog v${this.catalog.version} with ${Object.keys(this.catalog.gifts).length} gifts`);
+    console.log(`📖 Loaded catalog v${this.catalog.version} with ${Object.keys(this.catalog.gifts).length} gifts`);
   }
 
   async save() {
@@ -88,9 +88,9 @@ class GiftCatalogDB {
         JSON.stringify(this.catalog, null, 2),
         'utf8'
       );
-      console.log('?? Gift catalog saved');
+      console.log('💾 Gift catalog saved');
     } catch (error) {
-      console.error('? Error saving catalog:', error.message);
+      console.error('❌ Error saving catalog:', error.message);
       throw error;
     }
   }
@@ -107,7 +107,7 @@ class GiftCatalogDB {
       updatedAt: new Date().toISOString()
     };
     await this.save();
-    console.log(`? Updated mapping: ${giftName} -> ${telegramGiftId}`);
+    console.log(`✅ Updated mapping: ${giftName} -> ${telegramGiftId}`);
   }
 
   async bulkUpdateGifts(giftsArray) {
@@ -122,7 +122,7 @@ class GiftCatalogDB {
     }
     this.catalog.lastSync = new Date().toISOString();
     await this.save();
-    console.log(`? Bulk updated ${giftsArray.length} gift mappings`);
+    console.log(`✅ Bulk updated ${giftsArray.length} gift mappings`);
   }
 
   getGiftMapping(giftName) {
@@ -156,7 +156,7 @@ class GiftCatalogDB {
   async registerPrize(prizeId, giftName, userId, username) {
     // Check if prize already exists
     if (this.catalog.prizes[prizeId]) {
-      console.log(`??  Prize ${prizeId} already exists - updating`);
+      console.log(`⚠️  Prize ${prizeId} already exists - updating`);
     }
     
     this.catalog.prizes[prizeId] = {
@@ -167,7 +167,7 @@ class GiftCatalogDB {
       status: 'pending' // pending, sent, failed
     };
     await this.save();
-    console.log(`?? Registered prize: ${prizeId} -> ${giftName} (User: ${userId})`);
+    console.log(`📝 Registered prize: ${prizeId} -> ${giftName} (User: ${userId})`);
   }
 
   async updatePrizeStatus(prizeId, status, telegramChargeId = null) {
@@ -183,7 +183,7 @@ class GiftCatalogDB {
     }
     
     await this.save();
-    console.log(`?? Updated prize ${prizeId} status: ${status}`);
+    console.log(`📊 Updated prize ${prizeId} status: ${status}`);
   }
 
   getPrize(prizeId) {
@@ -214,7 +214,7 @@ class GiftCatalogDB {
     }
     delete this.catalog.prizes[prizeId];
     await this.save();
-    console.log(`???  Deleted prize: ${prizeId}`);
+    console.log(`🗑️  Deleted prize: ${prizeId}`);
     return true;
   }
 
@@ -327,7 +327,7 @@ class GiftCatalogDB {
     
     this.catalog = imported;
     await this.save();
-    console.log('? Catalog imported successfully');
+    console.log('✅ Catalog imported successfully');
   }
   
   // ============================================
@@ -339,10 +339,10 @@ class GiftCatalogDB {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const backupPath = this.dbPath.replace('.json', `_backup_${timestamp}.json`);
       await fs.writeFile(backupPath, JSON.stringify(this.catalog, null, 2), 'utf8');
-      console.log(`?? Backup created: ${backupPath}`);
+      console.log(`💾 Backup created: ${backupPath}`);
       return backupPath;
     } catch (error) {
-      console.error('? Backup failed:', error.message);
+      console.error('❌ Backup failed:', error.message);
       throw error;
     }
   }
@@ -352,9 +352,9 @@ class GiftCatalogDB {
       const data = await fs.readFile(backupPath, 'utf8');
       this.catalog = JSON.parse(data);
       await this.save();
-      console.log(`? Restored from backup: ${backupPath}`);
+      console.log(`✅ Restored from backup: ${backupPath}`);
     } catch (error) {
-      console.error('? Restore failed:', error.message);
+      console.error('❌ Restore failed:', error.message);
       throw error;
     }
   }
@@ -381,7 +381,7 @@ class GiftCatalogDB {
     
     if (removed > 0) {
       await this.save();
-      console.log(`?? Cleaned up ${removed} old prizes`);
+      console.log(`🧹 Cleaned up ${removed} old prizes`);
     }
     
     return removed;
@@ -398,7 +398,7 @@ class GiftCatalogDB {
     }
     
     await this.save();
-    console.log(`?? Reset ${failedPrizes.length} failed prizes to pending`);
+    console.log(`🔄 Reset ${failedPrizes.length} failed prizes to pending`);
     
     return failedPrizes;
   }
