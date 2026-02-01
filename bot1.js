@@ -478,6 +478,14 @@ console.log(`   Star cost: ${giftMapping.starCost}`);
 });
 
 // ============================================
+// SERVER HANDLE
+// ============================================
+
+app.get("/", (req, res) => {
+  res.send("Server is running. Try /status or /catalog.");
+});
+
+// ============================================
 // STATUS ENDPOINT
 // ============================================
 
@@ -718,6 +726,7 @@ startGiftBot().catch(error => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
+
 
 
 
