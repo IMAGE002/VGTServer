@@ -366,16 +366,26 @@ app.post('/claim-gift', async (req, res) => {
   }
 
   // ── 7. Look up the Telegram gift ID ──────
-  const giftMapping = STATE.db.getGiftMapping(giftName);
-  if (!giftMapping || !giftMapping.telegramId) {
-    console.log('❌ Gift not mapped in catalog');
-    await fetch(`${PRIZE_STORE_URL}/prizes/${prizeId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'pending', error_message: 'Gift not mapped' })
-    });
-    return res.status(500).json({ success: false, error: 'Gift not mapped. Contact admin.' });
-  }
+  const friendlyName = prize.gift_name; // "Diamond" from database
+const giftMapping = STATE.db.getGiftMapping(friendlyName);
+
+if (!giftMapping || !giftMapping.telegramId) {
+  console.log('❌ Gift not mapped in catalog');
+  await fetch(`${PRIZE_STORE_URL}/prizes/${prizeId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+      status: 'pending', 
+      error_message: `Gift "${friendlyName}" not mapped in catalog` 
+    })
+  });
+  return res.status(500).json({ 
+    success: false, 
+    error: `Gift "${friendlyName}" not mapped. Contact admin.` 
+  });
+}
+
+console.log(`✅ Gift mapping found: ${friendlyName} -> ${giftMapping.telegramId}`);
 
   // ── 8. Send the gift via Telegram API ────
   try {
@@ -689,4 +699,5 @@ startGiftBot().catch(error => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
+
 
