@@ -332,16 +332,33 @@ app.post('/claim-gift', async (req, res) => {
   }
 
   // ── 4. Verify gift name matches ──────────
-  if (prize.gift_name !== giftName) {
-    console.log('❌ Gift name mismatch!');
-    console.log(`   DB gift:      ${prize.gift_name}`);
-    console.log(`   Requested:    ${giftName}`);
-    await logFailedClaim(userId, giftName, prizeId, 'Gift name mismatch');
-    return res.status(400).json({
-      success: false,
-      error: 'Gift name does not match.'
-    });
-  }
+  const requestedGiftName = giftName;
+const storedGiftName = prize.gift_name;
+
+// Check if it matches either friendly name OR Telegram ID
+const isMatch = (
+  storedGiftName === requestedGiftName || 
+  prize.telegram_gift_id === requestedGiftName ||
+  // Also check if stored is Telegram ID and requested is friendly name
+  (friendlyName && storedGiftName === telegramGiftId) ||
+  (friendlyName && prize.telegram_gift_id === telegramGiftId)
+);
+
+if (!isMatch) {
+  console.log('❌ Gift name mismatch!');
+  console.log(`   DB gift_name:       ${prize.gift_name}`);
+  console.log(`   DB telegram_gift_id: ${prize.telegram_gift_id || 'N/A'}`);
+  console.log(`   Requested:          ${requestedGiftName}`);
+  console.log(`   Resolved friendly:  ${friendlyName || 'N/A'}`);
+  
+  await logFailedClaim(userId, giftName, prizeId, 'Gift name mismatch');
+  return res.status(400).json({
+    success: false,
+    error: 'Gift name does not match.'
+  });
+}
+
+console.log('✅ Gift name verified');
 
   // ── 5. Check status is "pending" ─────────
   if (prize.status !== 'pending') {
@@ -721,6 +738,7 @@ startGiftBot().catch(error => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
+
 
 
 
