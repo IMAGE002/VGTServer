@@ -89,9 +89,15 @@ const app = express();
 
 app.use(cors({ 
   origin: "https://image002.github.io", 
-  methods: ["GET", "POST", "OPTIONS"], 
-  allowedHeaders: ["Content-Type"] 
-})); 
+  methods: ["GET", "POST", "OPTIONS", "PATCH", "DELETE"], 
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+  optionsSuccessStatus: 200
+}));
+
+// Handle preflight requests explicitly
+app.options('*', cors());
+
 app.use(express.json());
 
 // ============================================
@@ -582,5 +588,6 @@ startGiftBot().catch(error => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
+
 
 
