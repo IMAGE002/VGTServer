@@ -11,7 +11,6 @@
 
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
-const cors = require('cors');
 
 // ============================================
 // CONFIGURATION
@@ -87,22 +86,22 @@ const STATE = {
 const bot = new TelegramBot(GIFT_BOT_TOKEN, { polling: true });
 const app = express();
 
-// ============================================
-// CORS CONFIGURATION - FIXED
-// ============================================
+app.use((req, res, next) => {
+  // Set CORS headers for EVERY request
+  res.header('Access-Control-Allow-Origin', '*');  // Allow all origins
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With');
+  res.header('Access-Control-Max-Age', '86400');  // Cache preflight for 24 hours
+  
+  // Handle preflight OPTIONS requests
+  if (req.method === 'OPTIONS') {
+    console.log('✅ Preflight request handled for:', req.path);
+    return res.status(200).end();
+  }
+  
+  next();
+});
 
-// ✅ Simple CORS - allows all origins (use this for testing)
-app.use(cors());
-
-// OR if you want to restrict to your domain only:
-// app.use(cors({
-//   origin: "https://image002.github.io",
-//   methods: ["GET", "POST", "OPTIONS", "PATCH", "DELETE"],
-//   allowedHeaders: ["Content-Type", "Accept"],
-//   credentials: true
-// }));
-
-// ✅ Body parser AFTER CORS
 app.use(express.json());
 
 // ============================================
@@ -592,3 +591,4 @@ startGiftBot().catch(error => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
+
