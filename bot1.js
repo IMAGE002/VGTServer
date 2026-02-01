@@ -32,7 +32,7 @@ if (!GIFT_BOT_TOKEN) {
 
 if (!PRIZE_STORE_URL) {
   console.error('❌ PRIZE_STORE_URL is required!');
-  console.error('   Example: https://your-prize-store.up.railway.');
+  console.error('   Example: https://your-prize-store.up.railway.app');
   process.exit(1);
 }
 
@@ -87,47 +87,23 @@ const STATE = {
 const bot = new TelegramBot(GIFT_BOT_TOKEN, { polling: true });
 const app = express();
 
-const STATE = {
-  botStarBalance: 0,
-  statistics: {
-    totalGiftsSent: 0,
-    totalStarsSpent: 0
-  }
-};
+// ============================================
+// CORS CONFIGURATION - FIXED
+// ============================================
 
-// ✅ CORS middleware FIRST
-app.use(cors({
-  origin: "https://image002.github.io",   // or exact subpath if needed
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type"]
-}));
+// ✅ Simple CORS - allows all origins (use this for testing)
+app.use(cors());
 
-// ✅ Handle all preflight requests
-app.options("*", cors());
+// OR if you want to restrict to your domain only:
+// app.use(cors({
+//   origin: "https://image002.github.io",
+//   methods: ["GET", "POST", "OPTIONS", "PATCH", "DELETE"],
+//   allowedHeaders: ["Content-Type", "Accept"],
+//   credentials: true
+// }));
 
-// ✅ Body parser
+// ✅ Body parser AFTER CORS
 app.use(express.json());
-
-// Example routes
-app.get("/status", (req, res) => {
-  res.json({ status: "ok", stats: STATE.statistics });
-});
-
-app.get("/catalog", (req, res) => {
-  res.json({ catalog: "..." });
-});
-
-app.post("/claim-gift", (req, res) => {
-  // your claim gift logic here
-  STATE.statistics.totalGiftsSent++;
-  res.json({ message: "Gift claimed!", stats: STATE.statistics });
-});
-
-// Root route (optional)
-app.get("/", (req, res) => {
-  res.send("Server is running. Endpoints: /status, /catalog, /claim-gift");
-});
-
 
 // ============================================
 // LOGGING FUNCTIONS
@@ -236,6 +212,48 @@ app.get('/', (req, res) => {
 });
 
 // ============================================
+// STATUS ENDPOINT
+// ============================================
+
+app.get('/status', async (req, res) => {
+  try {
+    await updateBotBalance();
+    
+    res.json({
+      success: true,
+      balance: STATE.botStarBalance,
+      statistics: STATE.statistics,
+      totalMappings: Object.keys(GIFT_MAPPINGS).length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================
+// MAPPINGS ENDPOINT
+// ============================================
+
+app.get('/mappings', (req, res) => {
+  try {
+    res.json({
+      success: true,
+      mappings: GIFT_MAPPINGS,
+      total: Object.keys(GIFT_MAPPINGS).length
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================
 // CLAIM GIFT ENDPOINT
 // ============================================
 
@@ -326,7 +344,6 @@ app.post('/claim-gift', async (req, res) => {
   }
 
   // ── 6. Look up the Telegram gift ID ──────
-  // The giftName coming from WebApp is the Telegram ID (e.g., "d01a849b9ef17642d8f4")
   const telegramGiftId = giftName;
   
   console.log(`🔍 Looking up gift mapping for: ${telegramGiftId}`);
@@ -435,48 +452,6 @@ app.post('/claim-gift', async (req, res) => {
     prizeId,
     giftName: giftMapping.name
   });
-});
-
-// ============================================
-// STATUS ENDPOINT
-// ============================================
-
-app.get('/status', async (req, res) => {
-  try {
-    await updateBotBalance();
-    
-    res.json({
-      success: true,
-      balance: STATE.botStarBalance,
-      statistics: STATE.statistics,
-      totalMappings: Object.keys(GIFT_MAPPINGS).length,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// ============================================
-// MAPPINGS ENDPOINT
-// ============================================
-
-app.get('/mappings', (req, res) => {
-  try {
-    res.json({
-      success: true,
-      mappings: GIFT_MAPPINGS,
-      total: Object.keys(GIFT_MAPPINGS).length
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
 });
 
 // ============================================
@@ -617,8 +592,3 @@ startGiftBot().catch(error => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
-
-
-
-
-
