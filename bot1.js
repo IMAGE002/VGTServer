@@ -366,27 +366,49 @@ app.post('/claim-gift', async (req, res) => {
   }
 
   // ── 7. Look up the Telegram gift ID ──────
-  const friendlyName = prize.gift_name; // "Diamond" from database
-const giftMapping = STATE.db.getGiftMapping(friendlyName);
+const giftNameOrId = prize.gift_name;
+
+console.log(`🔍 Looking up gift: ${giftNameOrId}`);
+
+// Try direct lookup first (friendly name)
+let giftMapping = STATE.db.getGiftMapping(giftNameOrId);
+let friendlyName = giftNameOrId;
+
+// If not found, try reverse lookup (Telegram ID)
+if (!giftMapping) {
+  console.log(`⚠️  Not found as friendly name, trying reverse lookup...`);
+  
+  const reverseMapping = STATE.db.getGiftMappingByTelegramId(giftNameOrId);
+  
+  if (reverseMapping) {
+    giftMapping = reverseMapping;
+    friendlyName = reverseMapping.giftName;
+    console.log(`✅ Found via reverse lookup: ${friendlyName}`);
+  }
+}
 
 if (!giftMapping || !giftMapping.telegramId) {
   console.log('❌ Gift not mapped in catalog');
+  console.log(`   Searched for: ${giftNameOrId}`);
+  
   await fetch(`${PRIZE_STORE_URL}/prizes/${prizeId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ 
       status: 'pending', 
-      error_message: `Gift "${friendlyName}" not mapped in catalog` 
+      error_message: `Gift not mapped: ${giftNameOrId}` 
     })
   });
+  
   return res.status(500).json({ 
     success: false, 
-    error: `Gift "${friendlyName}" not mapped. Contact admin.` 
+    error: 'Gift not mapped. Contact admin.' 
   });
 }
 
-console.log(`✅ Gift mapping found: ${friendlyName} -> ${giftMapping.telegramId}`);
-
+console.log(`✅ Gift found: ${friendlyName} -> ${giftMapping.telegramId}`);
+console.log(`   Star cost: ${giftMapping.starCost}`);
+  
   // ── 8. Send the gift via Telegram API ────
   try {
     console.log('📤 Sending gift via Telegram...');
@@ -699,5 +721,6 @@ startGiftBot().catch(error => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
+
 
 
