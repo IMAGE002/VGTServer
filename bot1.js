@@ -87,31 +87,47 @@ const STATE = {
 const bot = new TelegramBot(GIFT_BOT_TOKEN, { polling: true });
 const app = express();
 
-app.use((req, res, next) => {
-  // Allow requests from your GitHub Pages domain
-  res.header('Access-Control-Allow-Origin', 'https://image002.github.io');
-  
-  // Allow credentials (cookies, authorization headers)
-  res.header('Access-Control-Allow-Credentials', 'true');
-  
-  // Allow these methods
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-  
-  // Allow these headers
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
-  // Cache preflight for 24 hours (reduces OPTIONS requests)
-  res.header('Access-Control-Max-Age', '86400');
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
+const STATE = {
+  botStarBalance: 0,
+  statistics: {
+    totalGiftsSent: 0,
+    totalStarsSpent: 0
   }
-  
-  next();
+};
+
+// ✅ CORS middleware FIRST
+app.use(cors({
+  origin: "https://image002.github.io",   // or exact subpath if needed
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type"]
+}));
+
+// ✅ Handle all preflight requests
+app.options("*", cors());
+
+// ✅ Body parser
+app.use(express.json());
+
+// Example routes
+app.get("/status", (req, res) => {
+  res.json({ status: "ok", stats: STATE.statistics });
 });
 
-app.use(express.json());
+app.get("/catalog", (req, res) => {
+  res.json({ catalog: "..." });
+});
+
+app.post("/claim-gift", (req, res) => {
+  // your claim gift logic here
+  STATE.statistics.totalGiftsSent++;
+  res.json({ message: "Gift claimed!", stats: STATE.statistics });
+});
+
+// Root route (optional)
+app.get("/", (req, res) => {
+  res.send("Server is running. Endpoints: /status, /catalog, /claim-gift");
+});
+
 
 // ============================================
 // LOGGING FUNCTIONS
@@ -601,6 +617,7 @@ startGiftBot().catch(error => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
+
 
 
 
