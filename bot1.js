@@ -87,40 +87,32 @@ const bot = new TelegramBot(GIFT_BOT_TOKEN, { polling: true });
 const app = express();
 
 app.use((req, res, next) => {
-  console.log('');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('📥 INCOMING REQUEST');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('Method:', req.method);
-  console.log('Path:', req.path);
-  console.log('Origin:', req.headers.origin || 'NO ORIGIN HEADER');
-  console.log('Headers:', JSON.stringify(req.headers, null, 2));
+  // Always set these headers FIRST, before anything else
+  const origin = req.headers.origin;
   
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With');
-  res.setHeader('Access-Control-Max-Age', '86400');
-  
-  console.log('');
-  console.log('📤 RESPONSE HEADERS SET:');
-  console.log('Access-Control-Allow-Origin:', res.getHeader('Access-Control-Allow-Origin'));
-  console.log('Access-Control-Allow-Methods:', res.getHeader('Access-Control-Allow-Methods'));
-  console.log('Access-Control-Allow-Headers:', res.getHeader('Access-Control-Allow-Headers'));
-  
-  // Handle preflight
-  if (req.method === 'OPTIONS') {
-    console.log('✅ Responding to OPTIONS preflight request');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    return res.status(200).end();
+  // Allow your specific origin OR all origins
+  if (origin === 'https://image002.github.io') {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    // For testing, allow all origins
+    res.setHeader('Access-Control-Allow-Origin', '*');
   }
   
-  console.log('➡️  Passing to next middleware');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  
+  // Handle preflight requests IMMEDIATELY
+  if (req.method === 'OPTIONS') {
+    // Send 204 No Content for OPTIONS
+    return res.status(204).send();
+  }
+  
+  // Continue to next middleware
   next();
 });
 
+// Body parser comes AFTER CORS
 app.use(express.json());
 
 // ============================================
@@ -610,6 +602,7 @@ startGiftBot().catch(error => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
+
 
 
 
