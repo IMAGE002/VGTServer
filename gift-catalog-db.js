@@ -79,27 +79,43 @@ class GiftCatalogDB {
   // ============================================
 
   async updateGiftMapping(giftName, telegramId, starCost, displayName) {
-    this.data.gifts[giftName] = {
-      telegramId: telegramId,
-      starCost: starCost,
-      displayName: displayName || giftName,
-      lastUpdated: new Date().toISOString()
-    };
-    
-    if (telegramId) {
-      this.data.metadata.lastSync = new Date().toISOString();
+  this.data.gifts[giftName] = {
+    telegramId: telegramId,
+    starCost: starCost,
+    displayName: displayName || giftName,
+    lastUpdated: new Date().toISOString()
+  };
+  
+  if (telegramId) {
+    this.data.metadata.lastSync = new Date().toISOString();
+  }
+  
+  await this.save();
+}
+
+getGiftMapping(giftName) {
+  return this.data.gifts[giftName] || null;
+}
+
+// ✅ NEW METHOD: Reverse lookup by Telegram ID
+getGiftMappingByTelegramId(telegramId) {
+  const gifts = this.data.gifts;
+  
+  for (const [giftName, giftData] of Object.entries(gifts)) {
+    if (giftData.telegramId === telegramId) {
+      return {
+        giftName: giftName,
+        ...giftData
+      };
     }
-    
-    await this.save();
   }
+  
+  return null;
+}
 
-  getGiftMapping(giftName) {
-    return this.data.gifts[giftName] || null;
-  }
-
-  getAllGiftMappings() {
-    return { ...this.data.gifts };
-  }
+getAllGiftMappings() {
+  return { ...this.data.gifts };
+}
 
   // ============================================
   // PRIZE TRACKING OPERATIONS
