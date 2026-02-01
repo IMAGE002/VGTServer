@@ -87,16 +87,29 @@ const STATE = {
 const bot = new TelegramBot(GIFT_BOT_TOKEN, { polling: true });
 const app = express();
 
-app.use(cors({ 
-  origin: "https://image002.github.io", 
-  methods: ["GET", "POST", "OPTIONS", "PATCH", "DELETE"], 
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true,
-  optionsSuccessStatus: 200
-}));
-
-// Handle preflight requests explicitly
-app.options('*', cors());
+app.use((req, res, next) => {
+  // Allow requests from your GitHub Pages domain
+  res.header('Access-Control-Allow-Origin', 'https://image002.github.io');
+  
+  // Allow credentials (cookies, authorization headers)
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Allow these methods
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+  
+  // Allow these headers
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  // Cache preflight for 24 hours (reduces OPTIONS requests)
+  res.header('Access-Control-Max-Age', '86400');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+});
 
 app.use(express.json());
 
@@ -588,6 +601,7 @@ startGiftBot().catch(error => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
+
 
 
 
