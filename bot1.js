@@ -12,13 +12,6 @@
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 const cors = require('cors');
-const app = express(); 
-
-app.use(cors({ 
-  origin: "https://image002.github.io", 
-  methods: ["GET", "POST", "OPTIONS"], 
-  allowedHeaders: ["Content-Type"] 
-}));
 
 // ============================================
 // CONFIGURATION
@@ -39,7 +32,7 @@ if (!GIFT_BOT_TOKEN) {
 
 if (!PRIZE_STORE_URL) {
   console.error('❌ PRIZE_STORE_URL is required!');
-  console.error('   Example: https://your-prize-store.up.railway.app');
+  console.error('   Example: https://your-prize-store.up.railway.');
   process.exit(1);
 }
 
@@ -94,7 +87,11 @@ const STATE = {
 const bot = new TelegramBot(GIFT_BOT_TOKEN, { polling: true });
 const app = express();
 
-app.use(cors());
+app.use(cors({ 
+  origin: "https://image002.github.io", 
+  methods: ["GET", "POST", "OPTIONS"], 
+  allowedHeaders: ["Content-Type"] 
+})); 
 app.use(express.json());
 
 // ============================================
@@ -585,4 +582,5 @@ startGiftBot().catch(error => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
+
 
