@@ -12,6 +12,13 @@
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 const cors = require('cors');
+const app = express(); 
+
+app.use(cors({ 
+  origin: "https://image002.github.io", 
+  methods: ["GET", "POST", "OPTIONS"], 
+  allowedHeaders: ["Content-Type"] 
+}));
 
 // ============================================
 // CONFIGURATION
@@ -578,3 +585,4 @@ startGiftBot().catch(error => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
+
