@@ -45,16 +45,16 @@ console.log('✅ Prize Store URL:', PRIZE_STORE_URL);
 // ============================================
 
 const INITIAL_GIFT_DATA = {
-  'Heart': { starCost: 15, displayName: 'Heart' },
-  'Bear': { starCost: 75, displayName: 'Bear' },
-  'Rose': { starCost: 100, displayName: 'Rose' },
-  'Gift': { starCost: 125, displayName: 'Gift' },
-  'Cake': { starCost: 150, displayName: 'Cake' },
-  'Rose Bouquet': { starCost: 200, displayName: 'Rose Bouquet' },
-  'Ring': { starCost: 300, displayName: 'Ring' },
-  'Trophy': { starCost: 500, displayName: 'Trophy' },
-  'Diamond': { starCost: 750, displayName: 'Diamond' },
-  'Calendar': { starCost: 1000, displayName: 'Calendar' }
+  'd01a849b9ef17642d8f4': { starCost: 15, displayName: 'Heart' },
+  'd01a849bfc7f7938aa86': { starCost: 75, displayName: 'Bear' },
+  'd01a849b9e2c54fb0cf1': { starCost: 100, displayName: 'Rose' },
+  'd01a849ba490ee9e6308': { starCost: 125, displayName: 'Gift' },
+  'd01a849bb0e2c9f42a0a': { starCost: 150, displayName: 'Cake' },
+  'd01a849b8c2f0cd6de99': { starCost: 200, displayName: 'Rose Bouquet' },
+  'd01a849b9c4de7d48c4e': { starCost: 300, displayName: 'Ring' },
+  'd01a849b8de88d0e703d': { starCost: 500, displayName: 'Trophy' },
+  'd01a849b92670e79adce': { starCost: 750, displayName: 'Diamond' },
+  'd01a849b95b3da4d0acb': { starCost: 1000, displayName: 'Calendar' }
 };
 
 // ============================================
@@ -689,3 +689,4 @@ startGiftBot().catch(error => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
+
