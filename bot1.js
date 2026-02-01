@@ -11,7 +11,6 @@
 
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
-const cors = require("cors");
 
 // ============================================
 // CONFIGURATION
@@ -84,34 +83,45 @@ const STATE = {
   }
 };
 
-const bot = new TelegramBot(process.env.GIFT_BOT_TOKEN, { polling: true });
+const bot = new TelegramBot(GIFT_BOT_TOKEN, { polling: true });
 const app = express();
 
-// ✅ Use the official cors middleware FIRST
-app.use(cors());              // allows everything by default
-app.options("*", cors());     // respond to all preflight requests
+app.use((req, res, next) => {
+  console.log('');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('📥 INCOMING REQUEST');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('Method:', req.method);
+  console.log('Path:', req.path);
+  console.log('Origin:', req.headers.origin || 'NO ORIGIN HEADER');
+  console.log('Headers:', JSON.stringify(req.headers, null, 2));
+  
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  
+  console.log('');
+  console.log('📤 RESPONSE HEADERS SET:');
+  console.log('Access-Control-Allow-Origin:', res.getHeader('Access-Control-Allow-Origin'));
+  console.log('Access-Control-Allow-Methods:', res.getHeader('Access-Control-Allow-Methods'));
+  console.log('Access-Control-Allow-Headers:', res.getHeader('Access-Control-Allow-Headers'));
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    console.log('✅ Responding to OPTIONS preflight request');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    return res.status(200).end();
+  }
+  
+  console.log('➡️  Passing to next middleware');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('');
+  next();
+});
 
-// ✅ Body parser
 app.use(express.json());
-
-// Example routes
-app.get("/status", (req, res) => {
-  res.json({ status: "ok" });
-});
-
-app.post("/claim-gift", (req, res) => {
-  res.json({ message: "Gift claimed!" });
-});
-
-// Root route
-app.get("/", (req, res) => {
-  res.send("Server is running");
-});
-
-// Start server
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
 
 // ============================================
 // LOGGING FUNCTIONS
@@ -600,5 +610,6 @@ startGiftBot().catch(error => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
+
 
 
