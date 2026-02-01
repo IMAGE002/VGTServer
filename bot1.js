@@ -1,19 +1,17 @@
 // ============================================
-// GIFT TRANSACTOR BOT - UPDATED VERSION
+// GIFT TRANSACTOR BOT - CLEAN VERSION
 // ============================================
-// v2.1 - With Prize Store Integration
+// v2.2 - Fixed all mapping issues
 // 
 // REQUIRED ENVIRONMENT VARIABLES:
 // - GIFT_BOT_TOKEN=your_bot_token
 // - PRIZE_STORE_URL=https://your-prize-store.up.railway.app
 // - LOG_CHAT_ID=your_telegram_group_id (optional)
 // - GIFT_LOG_TOPIC_ID=5 (optional)
-// - GIFT_BOT_PORT=3001 (optional)
 
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 const cors = require('cors');
-const GiftCatalogDB = require('./gift-catalog-db');
 
 // ============================================
 // CONFIGURATION
@@ -21,7 +19,7 @@ const GiftCatalogDB = require('./gift-catalog-db');
 
 const GIFT_BOT_TOKEN = process.env.GIFT_BOT_TOKEN;
 const PRIZE_STORE_URL = process.env.PRIZE_STORE_URL;
-const HTTP_PORT = process.env.GIFT_BOT_PORT || 3001;
+const HTTP_PORT = process.env.PORT || process.env.GIFT_BOT_PORT || 3001;
 
 // Telegram Group Logging Configuration
 const LOG_CHAT_ID = process.env.LOG_CHAT_ID;
@@ -39,30 +37,46 @@ if (!PRIZE_STORE_URL) {
 }
 
 console.log('✅ Prize Store URL:', PRIZE_STORE_URL);
+console.log('✅ HTTP Port:', HTTP_PORT);
 
 // ============================================
-// GIFT CATALOG - INITIAL DATA
+// GIFT MAPPINGS - TELEGRAM ID TO FRIENDLY NAME
 // ============================================
 
-const INITIAL_GIFT_DATA = {
-  'd01a849b9ef17642d8f4': { starCost: 15, displayName: 'Heart' },
-  'd01a849bfc7f7938aa86': { starCost: 75, displayName: 'Bear' },
-  'd01a849b9e2c54fb0cf1': { starCost: 100, displayName: 'Rose' },
-  'd01a849ba490ee9e6308': { starCost: 125, displayName: 'Gift' },
-  'd01a849bb0e2c9f42a0a': { starCost: 150, displayName: 'Cake' },
-  'd01a849b8c2f0cd6de99': { starCost: 200, displayName: 'Rose Bouquet' },
-  'd01a849b9c4de7d48c4e': { starCost: 300, displayName: 'Ring' },
-  'd01a849b8de88d0e703d': { starCost: 500, displayName: 'Trophy' },
-  'd01a849b92670e79adce': { starCost: 750, displayName: 'Diamond' },
-  'd01a849b95b3da4d0acb': { starCost: 1000, displayName: 'Calendar' }
+const GIFT_MAPPINGS = {
+  // Telegram ID -> Friendly Name & Star Cost
+  'd01a849b9ef17642d8f4': { name: 'Heart', stars: 15 },
+  'd01a849bfc7f7938aa86': { name: 'Bear', stars: 75 },
+  'd01a849b9e2c54fb0cf1': { name: 'Rose', stars: 100 },
+  'd01a849ba490ee9e6308': { name: 'Gift', stars: 125 },
+  'd01a849bb0e2c9f42a0a': { name: 'Cake', stars: 150 },
+  'd01a849b8c2f0cd6de99': { name: 'Rose Bouquet', stars: 200 },
+  'd01a849b9c4de7d48c4e': { name: 'Ring', stars: 300 },
+  'd01a849b8de88d0e703d': { name: 'Trophy', stars: 500 },
+  'd01a849b92670e79adce': { name: 'Diamond', stars: 750 },
+  'd01a849b95b3da4d0acb': { name: 'Calendar', stars: 1000 }
 };
+
+// Helper function to find gift by Telegram ID
+function findGiftByTelegramId(telegramId) {
+  return GIFT_MAPPINGS[telegramId] || null;
+}
+
+// Helper function to get Telegram ID from friendly name
+function getTelegramIdByName(friendlyName) {
+  for (const [telegramId, data] of Object.entries(GIFT_MAPPINGS)) {
+    if (data.name === friendlyName) {
+      return telegramId;
+    }
+  }
+  return null;
+}
 
 // ============================================
 // STATE
 // ============================================
 
 const STATE = {
-  db: null,
   botStarBalance: 0,
   statistics: {
     totalGiftsSent: 0,
@@ -135,112 +149,6 @@ async function logFailedClaim(userId, giftName, prizeId, error) {
   console.log('📊 Failure logged to Telegram channel');
 }
 
-async function logSystemError(context, error) {
-  const message = `
-🚨 <b>GIFT BOT ERROR</b>
-━━━━━━━━━━━━━━━━━━━━
-
-<b>Context:</b> ${context}
-❌ <b>Error:</b> ${error.message || error}
-
-${error.stack ? `<b>Stack:</b>\n<code>${error.stack.substring(0, 500)}</code>\n` : ''}
-📅 <b>Time:</b> ${new Date().toISOString()}
-  `.trim();
-  
-  await sendGiftLog(message);
-}
-
-// ============================================
-// GIFT CATALOG MANAGEMENT
-// ============================================
-
-async function syncGiftCatalog() {
-  try {
-    console.log('🔄 Syncing gift catalog with Telegram...');
-    
-    const response = await bot.getAvailableGifts();
-    
-    if (!response || !response.gifts || response.gifts.length === 0) {
-      throw new Error('No gifts available from Telegram');
-    }
-    
-    console.log(`\n✅ Found ${response.gifts.length} gifts from Telegram:\n`);
-    
-    response.gifts.forEach((telegramGift, index) => {
-      console.log(`📦 Gift #${index + 1}:`);
-      console.log(`   ID: ${telegramGift.id}`);
-      console.log(`   Cost: ${telegramGift.star_count} stars`);
-      if (telegramGift.total_count) {
-        console.log(`   Stock: ${telegramGift.remaining_count}/${telegramGift.total_count}`);
-      }
-      console.log('');
-    });
-    
-    let autoMapped = 0;
-    const existingMappings = STATE.db.getAllGiftMappings();
-    
-    for (const [giftName, giftData] of Object.entries(INITIAL_GIFT_DATA)) {
-      if (existingMappings[giftName]?.telegramId) {
-        console.log(`✓ ${giftName} already mapped to ${existingMappings[giftName].telegramId}`);
-        continue;
-      }
-      
-      const match = response.gifts.find(tg => tg.star_count === giftData.starCost);
-      
-      if (match) {
-        await STATE.db.updateGiftMapping(
-          giftName,
-          match.id,
-          giftData.starCost,
-          giftData.displayName
-        );
-        autoMapped++;
-        console.log(`✅ Auto-mapped ${giftName} -> ${match.id} (${giftData.starCost} stars)`);
-      } else {
-        console.log(`⚠️  Could not auto-map ${giftName} (${giftData.starCost} stars)`);
-      }
-    }
-    
-    console.log(`\n✅ Sync complete! Auto-mapped ${autoMapped} gifts\n`);
-    
-    const stats = STATE.db.getStats();
-    console.log(`📊 Catalog Status: ${stats.gifts.mapped}/${stats.gifts.total} gifts mapped (${stats.gifts.percentage}%)\n`);
-    
-    return response.gifts;
-    
-  } catch (error) {
-    console.error('❌ Error syncing gift catalog:', error.message);
-    await logSystemError('Gift Catalog Sync', error);
-    return [];
-  }
-}
-
-async function initializeDatabase() {
-  try {
-    STATE.db = new GiftCatalogDB('./gift_catalog.json');
-    await STATE.db.initialize();
-    
-    const existingMappings = STATE.db.getAllGiftMappings();
-    if (Object.keys(existingMappings).length === 0) {
-      console.log('📦 Initializing default gift catalog...');
-      for (const [giftName, giftData] of Object.entries(INITIAL_GIFT_DATA)) {
-        await STATE.db.updateGiftMapping(
-          giftName,
-          null,
-          giftData.starCost,
-          giftData.displayName
-        );
-      }
-      console.log('✅ Default gift catalog initialized');
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('❌ Error initializing database:', error);
-    throw error;
-  }
-}
-
 // ============================================
 // UPDATE BOT BALANCE
 // ============================================
@@ -267,13 +175,29 @@ async function updateBotBalance() {
     
   } catch (error) {
     console.error('❌ Error getting balance:', error.message);
-    await logSystemError('Bot Balance Check', error);
     return 0;
   }
 }
 
 // ============================================
-// NEW CLAIM-GIFT ENDPOINT WITH PRIZE STORE VERIFICATION
+// ROOT ENDPOINT (FOR TESTING)
+// ============================================
+
+app.get('/', (req, res) => {
+  res.json({
+    status: 'online',
+    message: 'Gift Transactor Bot v2.2',
+    endpoints: {
+      'POST /claim-gift': 'Claim a prize from inventory',
+      'GET /status': 'Get bot status',
+      'GET /mappings': 'View gift mappings'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ============================================
+// CLAIM GIFT ENDPOINT
 // ============================================
 
 app.post('/claim-gift', async (req, res) => {
@@ -314,6 +238,11 @@ app.post('/claim-gift', async (req, res) => {
     }
 
     prize = await verifyRes.json();
+    console.log('✅ Prize found in database');
+    console.log(`   DB gift_name: ${prize.gift_name}`);
+    console.log(`   DB user_id: ${prize.user_id}`);
+    console.log(`   DB status: ${prize.status}`);
+    
   } catch (err) {
     console.error('❌ Failed to verify prize:', err.message);
     return res.status(500).json({ success: false, error: 'Failed to verify prize' });
@@ -331,16 +260,9 @@ app.post('/claim-gift', async (req, res) => {
     });
   }
 
-  // ── 4. Log what we're processing (no strict verification) ──────────
-console.log(`📦 Processing gift claim:`);
-console.log(`   Prize ID: ${prizeId}`);
-console.log(`   DB gift_name: ${prize.gift_name}`);
-console.log(`   DB telegram_gift_id: ${prize.telegram_gift_id || 'N/A'}`);
-console.log(`   Requested: ${giftName}`);
+  console.log('✅ Ownership verified');
 
-console.log('✅ Gift name verified');
-
-  // ── 5. Check status is "pending" ─────────
+  // ── 4. Check status is "pending" ─────────
   if (prize.status !== 'pending') {
     console.log(`❌ Prize is not pending (status: ${prize.status})`);
     return res.status(409).json({
@@ -349,7 +271,9 @@ console.log('✅ Gift name verified');
     });
   }
 
-  // ── 6. Lock the prize → "claiming" ───────
+  console.log('✅ Status is pending');
+
+  // ── 5. Lock the prize → "claiming" ───────
   try {
     await fetch(`${PRIZE_STORE_URL}/prizes/${prizeId}`, {
       method: 'PATCH',
@@ -362,59 +286,51 @@ console.log('✅ Gift name verified');
     return res.status(500).json({ success: false, error: 'Failed to lock prize' });
   }
 
-  // ── 7. Look up the Telegram gift ID ──────
-const giftNameOrId = prize.gift_name;
-
-console.log(`🔍 Looking up gift: ${giftNameOrId}`);
-
-// Try direct lookup first (friendly name)
-let giftMapping = STATE.db.getGiftMapping(giftNameOrId);
-let friendlyName = giftNameOrId;
-
-// If not found, try reverse lookup (Telegram ID)
-if (!giftMapping) {
-  console.log(`⚠️  Not found as friendly name, trying reverse lookup...`);
+  // ── 6. Look up the Telegram gift ID ──────
+  // The giftName coming from WebApp is the Telegram ID (e.g., "d01a849b9ef17642d8f4")
+  const telegramGiftId = giftName;
   
-  const reverseMapping = STATE.db.getGiftMappingByTelegramId(giftNameOrId);
+  console.log(`🔍 Looking up gift mapping for: ${telegramGiftId}`);
   
-  if (reverseMapping) {
-    giftMapping = reverseMapping;
-    friendlyName = reverseMapping.giftName;
-    console.log(`✅ Found via reverse lookup: ${friendlyName}`);
+  const giftMapping = findGiftByTelegramId(telegramGiftId);
+  
+  if (!giftMapping) {
+    console.log('❌ Gift not found in mappings!');
+    console.log(`   Telegram ID: ${telegramGiftId}`);
+    console.log(`   Available mappings:`, Object.keys(GIFT_MAPPINGS));
+    
+    await fetch(`${PRIZE_STORE_URL}/prizes/${prizeId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        status: 'pending', 
+        error_message: `Gift ID "${telegramGiftId}" not found in mappings` 
+      })
+    });
+    
+    await logFailedClaim(userId, telegramGiftId, prizeId, 'Gift not found in mappings');
+    
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Gift not mapped. Contact admin.' 
+    });
   }
-}
 
-if (!giftMapping || !giftMapping.telegramId) {
-  console.log('❌ Gift not mapped in catalog');
-  console.log(`   Searched for: ${giftNameOrId}`);
+  console.log(`✅ Gift mapped: ${giftMapping.name} (${giftMapping.stars} stars)`);
+  console.log(`   Telegram ID: ${telegramGiftId}`);
   
-  await fetch(`${PRIZE_STORE_URL}/prizes/${prizeId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      status: 'pending', 
-      error_message: `Gift not mapped: ${giftNameOrId}` 
-    })
-  });
-  
-  return res.status(500).json({ 
-    success: false, 
-    error: 'Gift not mapped. Contact admin.' 
-  });
-}
-
-console.log(`✅ Gift found: ${friendlyName} -> ${giftMapping.telegramId}`);
-console.log(`   Star cost: ${giftMapping.starCost}`);
-  
-  // ── 8. Send the gift via Telegram API ────
+  // ── 7. Send the gift via Telegram API ────
   try {
     console.log('📤 Sending gift via Telegram...');
+    console.log(`   User ID: ${userId}`);
+    console.log(`   Gift ID: ${telegramGiftId}`);
+    console.log(`   Gift Name: ${giftMapping.name}`);
 
     await bot.sendGift(
       userId,
-      giftMapping.telegramId,
+      telegramGiftId,
       {
-        text: `🎉 Congratulations!\n\nYou claimed: ${giftName}\nPrize ID: ${prizeId}\n\nEnjoy your gift! 🎁`,
+        text: `🎉 Congratulations!\n\nYou claimed: ${giftMapping.name}\nPrize ID: ${prizeId}\n\nEnjoy your gift! 🎁`,
         text_parse_mode: 'Markdown'
       }
     );
@@ -423,6 +339,7 @@ console.log(`   Star cost: ${giftMapping.starCost}`);
 
   } catch (err) {
     console.error('❌ Telegram sendGift failed:', err.message);
+    console.error('   Full error:', err);
 
     await fetch(`${PRIZE_STORE_URL}/prizes/${prizeId}`, {
       method: 'PATCH',
@@ -433,7 +350,7 @@ console.log(`   Star cost: ${giftMapping.starCost}`);
       })
     });
 
-    await logFailedClaim(userId, giftName, prizeId, `Telegram API: ${err.message}`);
+    await logFailedClaim(userId, giftMapping.name, prizeId, `Telegram API: ${err.message}`);
 
     return res.status(500).json({
       success: false,
@@ -441,7 +358,7 @@ console.log(`   Star cost: ${giftMapping.starCost}`);
     });
   }
 
-  // ── 9. Confirm success → "claimed" ───────
+  // ── 8. Confirm success → "claimed" ───────
   try {
     await fetch(`${PRIZE_STORE_URL}/prizes/${prizeId}`, {
       method: 'PATCH',
@@ -453,7 +370,7 @@ console.log(`   Star cost: ${giftMapping.starCost}`);
     console.error('⚠️  Failed to mark claimed (gift WAS sent):', err.message);
   }
 
-  // ── 10. Clean up → delete the row ────────
+  // ── 9. Clean up → delete the row ────────
   try {
     await fetch(`${PRIZE_STORE_URL}/prizes/${prizeId}`, {
       method: 'DELETE'
@@ -463,9 +380,13 @@ console.log(`   Star cost: ${giftMapping.starCost}`);
     console.warn('⚠️  Cleanup failed (non-fatal):', err.message);
   }
 
+  // ── 10. Update statistics ────────────────
+  STATE.statistics.totalGiftsSent++;
+  STATE.statistics.totalStarsSpent += giftMapping.stars;
+
   // ── 11. Log and respond ──────────────────
   await updateBotBalance();
-  await logSuccessfulClaim(userId, giftName, prizeId, giftMapping.starCost, STATE.botStarBalance);
+  await logSuccessfulClaim(userId, giftMapping.name, prizeId, giftMapping.stars, STATE.botStarBalance);
 
   console.log('═══════════════════════════════════════════\n');
 
@@ -473,16 +394,8 @@ console.log(`   Star cost: ${giftMapping.starCost}`);
     success: true,
     message: 'Gift sent successfully!',
     prizeId,
-    giftName
+    giftName: giftMapping.name
   });
-});
-
-// ============================================
-// SERVER HANDLE
-// ============================================
-
-app.get("/", (req, res) => {
-  res.send("Server is running. Try /status or /catalog.");
 });
 
 // ============================================
@@ -493,15 +406,12 @@ app.get('/status', async (req, res) => {
   try {
     await updateBotBalance();
     
-    const dbStats = STATE.db.getStats();
-    
     res.json({
       success: true,
       balance: STATE.botStarBalance,
       statistics: STATE.statistics,
-      catalog: dbStats.gifts,
-      prizes: dbStats.prizes,
-      lastSync: dbStats.lastSync
+      totalMappings: Object.keys(GIFT_MAPPINGS).length,
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     res.status(500).json({
@@ -512,19 +422,15 @@ app.get('/status', async (req, res) => {
 });
 
 // ============================================
-// CATALOG ENDPOINT
+// MAPPINGS ENDPOINT
 // ============================================
 
-app.get('/catalog', (req, res) => {
+app.get('/mappings', (req, res) => {
   try {
-    const mappings = STATE.db.getAllGiftMappings();
-    const stats = STATE.db.getStats();
-    
     res.json({
       success: true,
-      gifts: mappings,
-      stats: stats.gifts,
-      lastSync: stats.lastSync
+      mappings: GIFT_MAPPINGS,
+      total: Object.keys(GIFT_MAPPINGS).length
     });
   } catch (error) {
     res.status(500).json({
@@ -539,19 +445,15 @@ app.get('/catalog', (req, res) => {
 // ============================================
 
 bot.onText(/\/start/, async (msg) => {
-  const stats = STATE.db.getStats();
-  
   await bot.sendMessage(msg.chat.id,
-    `🎁 *Gift Transactor Bot v2.1*\n\n` +
+    `🎁 *Gift Transactor Bot v2.2*\n\n` +
     `This bot sends Telegram gifts to users.\n\n` +
-    `*Catalog Status:*\n` +
-    `Gifts Mapped: ${stats.gifts.mapped}/${stats.gifts.total} (${stats.gifts.percentage}%)\n` +
-    `Balance: ${STATE.botStarBalance} stars\n\n` +
+    `*Gift Mappings:* ${Object.keys(GIFT_MAPPINGS).length} gifts configured\n` +
+    `*Balance:* ${STATE.botStarBalance} stars\n\n` +
     `*Commands:*\n` +
     `/status - Bot status\n` +
-    `/syncgifts - Sync with Telegram\n` +
-    `/catalog - View gift mappings\n` +
     `/balance - Check balance\n` +
+    `/mappings - View gift mappings\n` +
     `/help - Show help`,
     { parse_mode: 'Markdown' }
   );
@@ -560,17 +462,10 @@ bot.onText(/\/start/, async (msg) => {
 bot.onText(/\/status/, async (msg) => {
   await updateBotBalance();
   
-  const stats = STATE.db.getStats();
-  
   await bot.sendMessage(msg.chat.id,
     `📊 *Bot Status*\n\n` +
-    `*Gift Catalog:*\n` +
-    `Total Gifts: ${stats.gifts.total}\n` +
-    `Mapped: ${stats.gifts.mapped} (${stats.gifts.percentage}%)\n` +
-    `Unmapped: ${stats.gifts.unmapped}\n` +
-    `Last Sync: ${stats.lastSync || 'Never'}\n\n` +
-    `*Bot Balance:*\n` +
-    `⭐ ${STATE.botStarBalance} Stars\n\n` +
+    `*Gift Mappings:* ${Object.keys(GIFT_MAPPINGS).length} gifts\n` +
+    `*Bot Balance:* ⭐ ${STATE.botStarBalance} Stars\n\n` +
     `*All-Time Stats:*\n` +
     `Gifts Sent: ${STATE.statistics.totalGiftsSent}\n` +
     `Stars Spent: ${STATE.statistics.totalStarsSpent}`,
@@ -578,35 +473,13 @@ bot.onText(/\/status/, async (msg) => {
   );
 });
 
-bot.onText(/\/syncgifts/, async (msg) => {
-  await bot.sendMessage(msg.chat.id, '🔄 Syncing gift catalog with Telegram...');
+bot.onText(/\/mappings/, async (msg) => {
+  let message = '📦 *Gift Mappings*\n\n';
   
-  await syncGiftCatalog();
-  
-  const stats = STATE.db.getStats();
-  
-  await bot.sendMessage(msg.chat.id,
-    `${stats.gifts.percentage === 100 ? '✅' : '⚠️'} Sync complete!\n\n` +
-    `Mapped: ${stats.gifts.mapped}/${stats.gifts.total} (${stats.gifts.percentage}%)\n\n` +
-    `${stats.gifts.unmapped > 0 ? 'Some gifts need manual mapping. Check logs.' : 'All gifts mapped successfully!'}`
-  );
-});
-
-bot.onText(/\/catalog/, async (msg) => {
-  const mappings = STATE.db.getAllGiftMappings();
-  
-  let message = '📦 *Gift Catalog*\n\n';
-  
-  for (const [giftName, giftData] of Object.entries(mappings)) {
-    const status = giftData.telegramId ? '✅' : '❌';
-    message += `${status} *${giftName}*\n`;
-    message += `   Cost: ${giftData.starCost} stars\n`;
-    if (giftData.telegramId) {
-      message += `   ID: \`${giftData.telegramId}\`\n`;
-    } else {
-      message += `   ID: _Not mapped_\n`;
-    }
-    message += '\n';
+  for (const [telegramId, data] of Object.entries(GIFT_MAPPINGS)) {
+    message += `✅ *${data.name}*\n`;
+    message += `   Cost: ${data.stars} stars\n`;
+    message += `   ID: \`${telegramId}\`\n\n`;
   }
   
   await bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
@@ -635,14 +508,9 @@ bot.onText(/\/help/, async (msg) => {
     `5. Prize is marked claimed & deleted\n\n` +
     `*Security Features:*\n` +
     `✅ Prize ownership verification\n` +
-    `✅ Gift name validation\n` +
     `✅ Status-based locking\n` +
-    `✅ No duplicate claims\n\n` +
-    `*Setup (First Time):*\n` +
-    `1. Set PRIZE_STORE_URL env var\n` +
-    `2. Run /syncgifts to map gifts\n` +
-    `3. Ensure bot has stars in balance\n` +
-    `4. WebApp can now claim gifts!\n\n` +
+    `✅ No duplicate claims\n` +
+    `✅ Automatic cleanup\n\n` +
     `*Important:*\n` +
     `Bot needs stars to send gifts!\n` +
     `Stars come from user payments or admin top-ups.`,
@@ -657,46 +525,30 @@ bot.onText(/\/help/, async (msg) => {
 async function startGiftBot() {
   console.log('');
   console.log('═══════════════════════════════════════════');
-  console.log('🎁 GIFT TRANSACTOR BOT v2.1');
+  console.log('🎁 GIFT TRANSACTOR BOT v2.2');
   console.log('═══════════════════════════════════════════');
   console.log('');
   
-  await initializeDatabase();
-  
-  const stats = STATE.db.getStats();
-  if (stats.gifts.percentage < 100) {
-    console.log('⚠️  Some gifts not mapped. Run /syncgifts to auto-map.');
-  }
+  console.log(`📦 Loaded ${Object.keys(GIFT_MAPPINGS).length} gift mappings`);
   
   await updateBotBalance();
   
   console.log('');
   
   if (LOG_CHAT_ID) {
-    const dbStats = STATE.db.getStats();
-    
     const startupMessage = `
-⚡️ <b>GIFT BOT ONLINE (v2.1)</b>
+⚡️ <b>GIFT BOT ONLINE (v2.2)</b>
 ━━━━━━━━━━━━━━━━━━━━
 
 ✅ <b>Status:</b> Bot started successfully
 
-📦 <b>Gift Catalog:</b>
-   ${dbStats.gifts.percentage === 100 ? '✅' : '⚠️'} ${dbStats.gifts.mapped}/${dbStats.gifts.total} gifts mapped (${dbStats.gifts.percentage}%)
-   Last Sync: ${dbStats.lastSync || 'Never'}
+📦 <b>Gift Mappings:</b> ${Object.keys(GIFT_MAPPINGS).length} gifts configured
 
 💰 <b>Balance:</b> ${STATE.botStarBalance} stars
 
 🔗 <b>Prize Store:</b> ${PRIZE_STORE_URL}
 
 🌐 <b>HTTP Server:</b> Port ${HTTP_PORT}
-
-🆕 <b>New in v2.1:</b>
-   • Prize Store integration
-   • Ownership verification
-   • Gift name validation
-   • Status-based locking
-   • Auto cleanup after claim
 
 🕐 <b>Timestamp:</b> ${new Date().toISOString()}
     `.trim();
@@ -712,11 +564,11 @@ async function startGiftBot() {
     console.log('📡 Endpoints:');
     console.log(`   POST /claim-gift - WebApp claims gift`);
     console.log(`   GET  /status - Get bot status`);
-    console.log(`   GET  /catalog - View gift catalog`);
+    console.log(`   GET  /mappings - View gift mappings`);
+    console.log(`   GET  / - Server info`);
     console.log('');
     console.log('✅ Gift Bot Ready!');
     console.log('   WebApp can now send claim requests!');
-    console.log('   Run /syncgifts to map Telegram gifts');
     console.log('═══════════════════════════════════════════');
     console.log('');
   });
@@ -726,9 +578,3 @@ startGiftBot().catch(error => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
-
-
-
-
-
-
